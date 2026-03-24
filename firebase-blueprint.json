@@ -1,0 +1,69 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "A customer who participated in the roulette.",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string", "description": "Customer name" },
+        "phoneNumber": { "type": "string", "description": "Customer phone number" },
+        "consent": { "type": "boolean", "description": "Whether the user consented to data collection" },
+        "createdAt": { "type": "string", "format": "date-time", "description": "When the user was created" }
+      },
+      "required": ["name", "phoneNumber", "consent", "createdAt"]
+    },
+    "RouletteResult": {
+      "title": "RouletteResult",
+      "description": "The result of a roulette spin.",
+      "type": "object",
+      "properties": {
+        "phoneNumber": { "type": "string", "description": "The phone number of the user" },
+        "rewardType": { "type": "string", "description": "The type of reward won" },
+        "couponId": { "type": "string", "description": "The unique ID of the coupon" },
+        "isUsed": { "type": "boolean", "description": "Whether the coupon has been used" },
+        "createdAt": { "type": "string", "format": "date-time", "description": "When the spin occurred" },
+        "dateString": { "type": "string", "description": "The date of the spin in YYYY-MM-DD format" }
+      },
+      "required": ["phoneNumber", "rewardType", "couponId", "isUsed", "createdAt", "dateString"]
+    },
+    "DailySpin": {
+      "title": "DailySpin",
+      "description": "A record to enforce one spin per day per phone number.",
+      "type": "object",
+      "properties": {
+        "phoneNumber": { "type": "string", "description": "The phone number of the user" },
+        "dateString": { "type": "string", "description": "The date of the spin in YYYY-MM-DD format" },
+        "createdAt": { "type": "string", "format": "date-time", "description": "When the spin occurred" }
+      },
+      "required": ["phoneNumber", "dateString", "createdAt"]
+    },
+    "Admin": {
+      "title": "Admin",
+      "description": "An administrator of the system.",
+      "type": "object",
+      "properties": {
+        "email": { "type": "string", "format": "email", "description": "The admin's email address" },
+        "role": { "type": "string", "enum": ["admin"], "description": "The role of the admin" }
+      },
+      "required": ["email", "role"]
+    }
+  },
+  "firestore": {
+    "/users/{phoneNumber}": {
+      "schema": { "$ref": "#/entities/User" },
+      "description": "Stores customer information."
+    },
+    "/roulette_results/{couponId}": {
+      "schema": { "$ref": "#/entities/RouletteResult" },
+      "description": "Stores the results of roulette spins."
+    },
+    "/daily_spins/{date_phone}": {
+      "schema": { "$ref": "#/entities/DailySpin" },
+      "description": "Stores the daily spin records to enforce 1-per-day rule."
+    },
+    "/admins/{adminId}": {
+      "schema": { "$ref": "#/entities/Admin" },
+      "description": "Stores administrator accounts."
+    }
+  }
+}

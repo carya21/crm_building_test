@@ -1,0 +1,130 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // ===============================================================
+    // Assumed Data Model
+    // ===============================================================
+    //
+    // Collection: users
+    // Document ID: phoneNumber
+    // Fields:
+    //   - name: string (required, < 50 chars)
+    //   - phoneNumber: string (required, < 20 chars)
+    //   - consent: boolean (required)
+    //   - createdAt: string (required)
+    //
+    // Collection: roulette_results
+    // Document ID: couponId
+    // Fields:
+    //   - phoneNumber: string (required, < 20 chars)
+    //   - rewardType: string (required, < 50 chars)
+    //   - couponId: string (required, < 50 chars)
+    //   - isUsed: boolean (required)
+    //   - createdAt: string (required)
+    //   - dateString: string (required, YYYY-MM-DD)
+    //
+    // Collection: daily_spins
+    // Document ID: {dateString}_{phoneNumber}
+    // Fields:
+    //   - phoneNumber: string (required, < 20 chars)
+    //   - dateString: string (required, YYYY-MM-DD)
+    //   - createdAt: string (required)
+    //
+    // Collection: admins
+    // Document ID: adminId
+    // Fields:
+    //   - email: string (required)
+    //   - role: string (required, 'admin')
+    //
+    // ===============================================================
+
+    // Helper Functions
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isAdmin() {
+      return isAuthenticated() &&
+        (exists(/databases/$(database)/documents/admins/$(request.auth.uid)) && get(/databases/$(database)/documents/admins/$(request.auth.uid)).data.role == 'admin' ||
+          (request.auth.token.email == "yeonwooJ21@gmail.com" && request.auth.token.email_verified == true));
+    }
+
+    function hasRequiredFields(fields) {
+      return request.resource.data.keys().hasAll(fields);
+    }
+
+    function hasOnlyAllowedFields(fields) {
+      return request.resource.data.keys().hasOnly(fields);
+    }
+    
+    function isValidString(field, minLen, maxLen) {
+      return request.resource.data[field] is string &&
+        request.resource.data[field].size() >= minLen &&
+        request.resource.data[field].size() <= maxLen;
+    }
+
+    // Domain Validators
+    function isValidUser() {
+      return hasOnlyAllowedFields(['name', 'phoneNumber', 'consent', 'createdAt']) &&
+             isValidString('name', 1, 50) &&
+             isValidString('phoneNumber', 10, 20) &&
+             request.resource.data.consent is bool &&
+             request.resource.data.consent == true &&
+             isValidString('createdAt', 10, 50);
+    }
+
+    function isValidRouletteResult() {
+      return hasOnlyAllowedFields(['phoneNumber', 'rewardType', 'couponId', 'isUsed', 'createdAt', 'dateString']) &&
+             isValidString('phoneNumber', 10, 20) &&
+             isValidString('rewardType', 1, 50) &&
+             isValidString('couponId', 1, 50) &&
+             request.resource.data.isUsed is bool &&
+             isValidString('createdAt', 10, 50) &&
+             isValidString('dateString', 10, 10);
+    }
+
+    function isValidDailySpin() {
+      return hasOnlyAllowedFields(['phoneNumber', 'dateString', 'createdAt']) &&
+             isValidString('phoneNumber', 10, 20) &&
+             isValidString('dateString', 10, 10) &&
+             isValidString('createdAt', 10, 50);
+    }
+
+    function isValidAdmin() {
+      return hasOnlyAllowedFields(['email', 'role']) &&
+             isValidString('email', 5, 100) &&
+             request.resource.data.role == 'admin';
+    }
+
+    match /users/{phoneNumber} {
+      // Anyone authenticated (even anonymous) can create/update their own user doc
+      allow create: if isAuthenticated() && isValidUser() && request.resource.data.phoneNumber == phoneNumber;
+      allow update: if isAuthenticated() && isValidUser() && request.resource.data.phoneNumber == phoneNumber;
+      allow read: if isAdmin();
+      allow delete: if isAdmin();
+    }
+
+    match /roulette_results/{couponId} {
+      // Anyone authenticated can create a result
+      allow create: if isAuthenticated() && isValidRouletteResult() && request.resource.data.couponId == couponId && request.resource.data.isUsed == false;
+      allow read: if isAdmin();
+      allow update: if isAdmin() && isValidRouletteResult() && request.resource.data.couponId == resource.data.couponId && request.resource.data.phoneNumber == resource.data.phoneNumber && request.resource.data.rewardType == resource.data.rewardType && request.resource.data.createdAt == resource.data.createdAt && request.resource.data.dateString == resource.data.dateString;
+      allow delete: if isAdmin();
+    }
+
+    match /daily_spins/{docId} {
+      // Create only. No updates. Document ID must be dateString_phoneNumber
+      allow create: if isAuthenticated() && isValidDailySpin() && docId == request.resource.data.dateString + '_' + request.resource.data.phoneNumber;
+      allow get: if isAuthenticated();
+      allow list: if isAdmin();
+      allow update: if false; // Never update
+      allow delete: if isAdmin();
+    }
+
+    match /admins/{adminId} {
+      allow read: if isAdmin();
+      allow create, update, delete: if isAdmin() && isValidAdmin();
+    }
+  }
+}
